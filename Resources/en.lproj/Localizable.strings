@@ -1,0 +1,23 @@
+// YouTube (Tube) — English base strings (identity; English is the fallback for every locale).
+
+// --- Search screen ---
+"Search YouTube" = "Search YouTube";
+"Search for videos or music." = "Search for videos or music.";
+"Nothing found." = "Nothing found.";
+
+// --- Player: header / comments ---
+"Comments" = "Comments";
+"You need to be signed in for that." = "You need to be signed in for that.";
+"OK" = "OK";
+
+// --- Player: status / errors ---
+"Trying web player …" = "Trying web player …";
+"YouTube won't play this video without a modern browser." = "YouTube won't play this video without a modern browser.";
+"No stream URL" = "No stream URL";
+"♪  Audio only" = "♪  Audio only";
+"Playback error" = "Playback error";
+
+// --- API: playback errors ---
+"This video is blocked (age/region/rights). Most others work." = "This video is blocked (age/region/rights). Most others work.";
+"Not playable (%@)" = "Not playable (%@)";
+"No streams found." = "No streams found.";

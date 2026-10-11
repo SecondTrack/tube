@@ -1,0 +1,23 @@
+// YouTube (Tube) — Deutsche Übersetzung. Schlüssel = englischer Basistext.
+
+// --- Suche ---
+"Search YouTube" = "YouTube durchsuchen";
+"Search for videos or music." = "Suche nach Videos oder Musik.";
+"Nothing found." = "Nichts gefunden.";
+
+// --- Player: Kopf / Kommentare ---
+"Comments" = "Kommentare";
+"You need to be signed in for that." = "Dafür ist eine Anmeldung nötig.";
+"OK" = "OK";
+
+// --- Player: Status / Fehler ---
+"Trying web player …" = "Versuche Web-Player …";
+"YouTube won't play this video without a modern browser." = "Dieses Video gibt YouTube ohne modernen Browser nicht frei.";
+"No stream URL" = "Keine Stream-URL";
+"♪  Audio only" = "♪  Nur Audio";
+"Playback error" = "Wiedergabefehler";
+
+// --- API: Wiedergabefehler ---
+"This video is blocked (age/region/rights). Most others work." = "Dieses Video ist gesperrt (Alter/Region/Rechte). Die meisten anderen gehen.";
+"Not playable (%@)" = "Nicht abspielbar (%@)";
+"No streams found." = "Keine Streams gefunden.";

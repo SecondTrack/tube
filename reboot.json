@@ -1,0 +1,16 @@
+{
+  "id": "tube",
+  "name": "Tube",
+  "short": "Videos suchen und schauen",
+  "category": "Medien",
+  "status": "beta",
+  "ios": [
+    "6.1.6"
+  ],
+  "package": "de.mesh.ytube",
+  "version": "",
+  "repo": "SecondTrack/tube",
+  "requires": "",
+  "license": "GPL-3.0",
+  "install": "GitHub-Release: neuestes Release, Anhang *.deb"
+}
