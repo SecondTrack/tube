@@ -8,9 +8,19 @@
     "6.1.6"
   ],
   "package": "de.mesh.ytube",
-  "version": "",
+  "version": "0.2.0",
   "repo": "SecondTrack/tube",
   "requires": "",
   "license": "GPL-3.0",
-  "install": "GitHub-Release: neuestes Release, Anhang *.deb"
+  "install": "GitHub-Release: neuestes Release, Anhang *.deb",
+  "bundle": "de.mesh.ytube",
+  "text": "Videos suchen und in 360p abspielen – oder nur den Ton, auch im Hintergrund. Mit Kommentaren, ohne Konto.",
+  "features": [
+    "Suche wie gewohnt",
+    "Videos in 360p",
+    "Nur Ton – auch im Hintergrund",
+    "Kommentare lesen"
+  ],
+  "icon": "https://raw.githubusercontent.com/SecondTrack/tube/main/Resources/Icon@2x.png",
+  "private": false
 }

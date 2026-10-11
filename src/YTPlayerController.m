@@ -33,7 +33,9 @@
     NSCache *_cImgs;
     CGFloat _sh, _sy;
     BOOL _fs; UIView *_fsBox;   // eigenes Vollbild
+    BOOL _mini; UIView *_miniBox; // Mini-Player unten rechts (weiter abspielen beim Zurückgehen)
 }
+static YTPlayerController *gMini;   // hält den Player am Leben, solange er klein weiterspielt
 
 - (id)initWithVideoId:(NSString *)videoId title:(NSString *)title author:(NSString *)author avatar:(NSString *)avatar {
     if((self=[super init])){ _vid=videoId; _title=title?:@""; _author=author?:@""; _avatarURL=avatar?:@""; }
@@ -122,10 +124,74 @@
     UIActivityViewController *a=[[UIActivityViewController alloc] initWithActivityItems:@[link] applicationActivities:nil];
     [self presentViewController:a animated:YES completion:nil];
 }
-- (void)goBack { [self.navigationController popViewControllerAnimated:YES]; }
+- (void)goBack {
+    BOOL playing=_mp && !_audioMode && (_mp.playbackState==MPMoviePlaybackStatePlaying || _mp.playbackState==MPMoviePlaybackStatePaused);
+    if(playing) [self minimize];
+    [self.navigationController popViewControllerAnimated:YES];
+}
+
+// ---- Mini-Player: Video schrumpft in die Ecke und spielt weiter ----
++ (void)closeMini { [gMini closeMiniPlayer]; }
+- (void)minimize {
+    if(_fs) [self exitFS];
+    UIWindow *win=self.view.window?:[[UIApplication sharedApplication] keyWindow]; if(!win) return;
+    _mini=YES; gMini=self;
+    CGFloat W=win.bounds.size.width, H=win.bounds.size.height, mw=W*0.5, mh=mw*9/16;
+    CGRect from=[_stage convertRect:_stage.bounds toView:win];
+    _miniBox=[[UIView alloc] initWithFrame:from]; _miniBox.backgroundColor=[UIColor blackColor];
+    _miniBox.layer.shadowColor=[UIColor blackColor].CGColor; _miniBox.layer.shadowOpacity=0.6; _miniBox.layer.shadowRadius=8; _miniBox.layer.shadowOffset=CGSizeMake(0,3);
+    [win addSubview:_miniBox];
+    _mp.view.frame=_miniBox.bounds; [_miniBox addSubview:_mp.view];
+    UIView *hit=[[UIView alloc] initWithFrame:_miniBox.bounds]; hit.autoresizingMask=UIViewAutoresizingFlexibleWidth|UIViewAutoresizingFlexibleHeight;
+    [hit addGestureRecognizer:[[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(restoreFromMini)]];
+    [hit addGestureRecognizer:[[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(dragMini:)]];
+    [_miniBox addSubview:hit];
+    UIButton *x=[UIButton buttonWithType:UIButtonTypeCustom]; x.frame=CGRectMake(mw-30,0,30,30); x.tag=88;
+    [x setTitle:@"✕" forState:UIControlStateNormal]; x.titleLabel.font=[UIFont boldSystemFontOfSize:15];
+    [x setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal]; x.backgroundColor=[UIColor colorWithWhite:0 alpha:0.45];
+    [x addTarget:self action:@selector(closeMiniPlayer) forControlEvents:UIControlEventTouchUpInside]; x.alpha=0; [_miniBox addSubview:x];
+    [UIView animateWithDuration:0.3 animations:^{
+        _miniBox.frame=CGRectMake(W-mw-10,H-mh-10,mw,mh); _mp.view.frame=_miniBox.bounds; x.frame=CGRectMake(mw-30,0,30,30); x.alpha=1;
+    }];
+}
+- (void)dragMini:(UIPanGestureRecognizer *)g {   // verschieben; weit nach unten/zur Seite wischen = schließen
+    UIView *v=_miniBox; CGPoint t=[g translationInView:v.superview];
+    v.center=CGPointMake(v.center.x+t.x,v.center.y+t.y); [g setTranslation:CGPointZero inView:v.superview];
+    if(g.state==UIGestureRecognizerStateEnded){
+        CGRect b=v.superview.bounds;
+        if(!CGRectIntersectsRect(CGRectInset(b,40,40),v.frame)){ [self closeMiniPlayer]; return; }
+        CGFloat x=MAX(v.bounds.size.width/2+10,MIN(b.size.width-v.bounds.size.width/2-10,v.center.x));
+        CGFloat y=MAX(v.bounds.size.height/2+30,MIN(b.size.height-v.bounds.size.height/2-10,v.center.y));
+        [UIView animateWithDuration:0.2 animations:^{ v.center=CGPointMake(x,y); }];
+    }
+}
+- (void)restoreFromMini {
+    UINavigationController *nav=(UINavigationController *)[[UIApplication sharedApplication] keyWindow].rootViewController;
+    if(![nav isKindOfClass:[UINavigationController class]]){ [self closeMiniPlayer]; return; }
+    if(nav.topViewController!=self) [nav pushViewController:self animated:YES];
+}
+- (void)closeMiniPlayer {
+    if(!_mini) return;
+    _mini=NO; [self teardown];
+    UIView *b=_miniBox; _miniBox=nil;
+    [UIView animateWithDuration:0.2 animations:^{ b.alpha=0; } completion:^(BOOL f){ [b removeFromSuperview]; }];
+    if(gMini==self) gMini=nil;
+}
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    if(_mini){   // aus dem Mini-Player zurück: Video wieder in die Bühne
+        _mini=NO; if(gMini==self) gMini=nil;
+        _mp.view.frame=_stage.bounds; [_stage insertSubview:_mp.view atIndex:0];
+        [_miniBox removeFromSuperview]; _miniBox=nil;
+        [_stage bringSubviewToFront:_ctrls]; [_stage bringSubviewToFront:_spin]; [_stage bringSubviewToFront:_statusLbl];
+        [[UIDevice currentDevice] beginGeneratingDeviceOrientationNotifications];
+        [self showCtrls];
+    }
+}
 
 - (void)viewDidLoad {
     [super viewDidLoad];
+    if(gMini && gMini!=self) [YTPlayerController closeMini];   // neues Video -> altes Mini-Fenster zu
     [_spin startAnimating]; _statusLbl.text=@"";   // nur Spinner beim Laden (Text würde ihn überlagern); Text nur für Fehler
     [YTApi streams:_vid completion:^(NSString *v,NSString *a,NSString *title,NSString *author,NSString *err){
         if(err){ [_spin stopAnimating]; _statusLbl.text=err; return; }
@@ -141,6 +207,7 @@
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(deviceRotated) name:UIDeviceOrientationDidChangeNotification object:nil];
 }
 - (void)deviceRotated {
+    if(_mini) return;
     UIDeviceOrientation o=[UIDevice currentDevice].orientation;
     if(o==UIDeviceOrientationLandscapeLeft || o==UIDeviceOrientationLandscapeRight){
         CGFloat ang=(o==UIDeviceOrientationLandscapeLeft)? M_PI_2 : -M_PI_2;
@@ -201,6 +268,9 @@
     _ctrls.autoresizingMask=UIViewAutoresizingFlexibleWidth|UIViewAutoresizingFlexibleHeight; [_stage addSubview:_ctrls];
     // Tipp aufs Video -> Controls ein/aus
     UITapGestureRecognizer *tap=[[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(toggleCtrls)]; [_ctrls addGestureRecognizer:tap];
+    // Doppeltippen links = 10 s zurück, rechts = 10 s vor (wie beim modernen YouTube)
+    UITapGestureRecognizer *dbl=[[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(doubleTap:)]; dbl.numberOfTapsRequired=2;
+    [_ctrls addGestureRecognizer:dbl]; [tap requireGestureRecognizerToFail:dbl];
     // großer Play/Pause-Button in der Mitte
     _playBtn=[[UIView alloc] initWithFrame:CGRectMake(W/2-26,H/2-26,52,52)]; _playBtn.backgroundColor=[UIColor colorWithWhite:0 alpha:0.5]; _playBtn.layer.cornerRadius=26;
     _playBtn.autoresizingMask=UIViewAutoresizingFlexibleLeftMargin|UIViewAutoresizingFlexibleRightMargin|UIViewAutoresizingFlexibleTopMargin|UIViewAutoresizingFlexibleBottomMargin;
@@ -220,6 +290,7 @@
     _fsBtn=[UIButton buttonWithType:UIButtonTypeCustom]; _fsBtn.frame=CGRectMake(W-28,by-1,24,22); _fsBtn.autoresizingMask=UIViewAutoresizingFlexibleLeftMargin|UIViewAutoresizingFlexibleTopMargin;
     [_fsBtn setImage:[self fsIcon] forState:UIControlStateNormal]; [_fsBtn addTarget:self action:@selector(toggleFullscreen) forControlEvents:UIControlEventTouchUpInside]; [_ctrls addSubview:_fsBtn];
     _ctrlsShown=YES; [self drawPlayIcon]; [self scheduleHide];
+    _playBtn.hidden=_spin.isAnimating;
 }
 - (UIImage *)fsIcon {
     UIGraphicsBeginImageContextWithOptions(CGSizeMake(22,22),NO,0); [[UIColor whiteColor] setStroke]; UIBezierPath*p=[UIBezierPath bezierPath]; p.lineWidth=1.8; p.lineCapStyle=kCGLineCapRound;
@@ -262,6 +333,20 @@
     [_stage bringSubviewToFront:_spin]; [_stage bringSubviewToFront:_statusLbl];
     [self showCtrls];
 }
+- (void)doubleTap:(UITapGestureRecognizer *)g {
+    if(!_mp || _mp.duration<=0) return;
+    CGPoint p=[g locationInView:_ctrls]; CGFloat W=_ctrls.bounds.size.width;
+    if(p.x>W*0.35 && p.x<W*0.65) return;                       // Mitte: Play/Pause-Bereich
+    BOOL fwd=p.x>=W*0.5; double t=_mp.currentPlaybackTime+(fwd?10:-10);
+    _mp.currentPlaybackTime=MAX(0,MIN(_mp.duration-1,t));
+    // kurze Anzeige auf der jeweiligen Seite
+    UILabel *l=[[UILabel alloc] initWithFrame:CGRectMake(fwd?W*0.62:0,0,W*0.38,_ctrls.bounds.size.height)];
+    l.text=fwd?L(@"10 s  »"):L(@"«  10 s"); l.font=[UIFont boldSystemFontOfSize:15]; l.textColor=[UIColor whiteColor];
+    l.textAlignment=NSTextAlignmentCenter; l.backgroundColor=[UIColor colorWithWhite:1 alpha:0.12]; l.userInteractionEnabled=NO;
+    [_ctrls addSubview:l];
+    [UIView animateWithDuration:0.6 delay:0.25 options:0 animations:^{ l.alpha=0; } completion:^(BOOL f){ [l removeFromSuperview]; }];
+    [self tick];
+}
 - (void)toggleCtrls { if(_ctrlsShown){ [self hideCtrls]; } else { [self showCtrls]; } }
 - (void)showCtrls { _ctrlsShown=YES; [UIView animateWithDuration:0.15 animations:^{ _playBtn.alpha=1; _tCur.alpha=1;_tDur.alpha=1;_progTrack.alpha=1;_progFill.alpha=1;_knob.alpha=1;_fsBtn.alpha=1; }]; [self scheduleHide]; }
 - (void)hideCtrls { _ctrlsShown=NO; [UIView animateWithDuration:0.25 animations:^{ _playBtn.alpha=0; _tCur.alpha=0;_tDur.alpha=0;_progTrack.alpha=0.0;_progFill.alpha=0.0;_knob.alpha=0;_fsBtn.alpha=0; }]; }
@@ -274,6 +359,7 @@
         _progFill.frame=CGRectMake(tx,ty,w,3); _knob.center=CGPointMake(tx+w,ky);
         _tCur.text=[self fmt:cur]; _tDur.text=[self fmt:dur]; }
     [self drawPlayIcon];
+    _playBtn.hidden=_spin.isAnimating;   // lädt -> nur das Rad, kein Play-Symbol darüber
 }
 - (void)handleSeek:(UIGestureRecognizer *)g {
     double dur=_mp.duration; if(dur<=0) return;
@@ -283,7 +369,12 @@
     _seeking=(g.state==UIGestureRecognizerStateBegan||g.state==UIGestureRecognizerStateChanged);
     if([g isKindOfClass:[UITapGestureRecognizer class]] || g.state==UIGestureRecognizerStateEnded){ _mp.currentPlaybackTime=f*dur; _seeking=NO; [self showCtrls]; }
 }
-- (void)stateChanged:(NSNotification *)n { YTLog(@"player loadState=%d", (int)_mp.loadState); if(_mp.loadState & (MPMovieLoadStatePlayable|MPMovieLoadStatePlaythroughOK)){ [_spin stopAnimating]; _statusLbl.text=@""; } }
+- (void)stateChanged:(NSNotification *)n {
+    YTLog(@"player loadState=%d", (int)_mp.loadState);
+    if(_mp.loadState & MPMovieLoadStateStalled){ [_spin startAnimating]; [_stage bringSubviewToFront:_spin]; }   // hängt -> wieder Laden zeigen
+    else if(_mp.loadState & (MPMovieLoadStatePlayable|MPMovieLoadStatePlaythroughOK)){ [_spin stopAnimating]; _statusLbl.text=@""; }
+    _playBtn.hidden=_spin.isAnimating;
+}
 - (void)finished:(NSNotification *)n {
     NSInteger r=[n.userInfo[MPMoviePlayerPlaybackDidFinishReasonUserInfoKey] integerValue];
     YTLog(@"player finished reason=%ld", (long)r);
@@ -297,7 +388,7 @@
     if(_mp){ [[NSNotificationCenter defaultCenter] removeObserver:self name:MPMoviePlayerLoadStateDidChangeNotification object:_mp]; [[NSNotificationCenter defaultCenter] removeObserver:self name:MPMoviePlayerPlaybackDidFinishNotification object:_mp]; [_mp stop]; [_mp.view removeFromSuperview]; _mp=nil; }
     for(UIView *v in [_stage.subviews copy]) if(v.tag==77)[v removeFromSuperview];
 }
-- (void)viewWillDisappear:(BOOL)animated { [super viewWillDisappear:animated]; [self teardown]; [[UIDevice currentDevice] endGeneratingDeviceOrientationNotifications]; }
+- (void)viewWillDisappear:(BOOL)animated { [super viewWillDisappear:animated]; if(!_mini) [self teardown]; [[UIDevice currentDevice] endGeneratingDeviceOrientationNotifications]; }
 - (NSUInteger)supportedInterfaceOrientations { return UIInterfaceOrientationMaskPortrait; }   // Screen Hochformat; MPMoviePlayer-Vollbild dreht selbst
 - (BOOL)shouldAutorotate { return NO; }
 - (void)dealloc { [[NSNotificationCenter defaultCenter] removeObserver:self]; }
