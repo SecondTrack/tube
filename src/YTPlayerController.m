@@ -121,8 +121,10 @@ static YTPlayerController *gMini;   // hält den Player am Leben, solange er kle
 - (void)needLogin { [[[UIAlertView alloc] initWithTitle:nil message:L(@"You need to be signed in for that.") delegate:nil cancelButtonTitle:L(@"OK") otherButtonTitles:nil] show]; }
 - (void)share {
     NSString *link=[@"https://youtu.be/" stringByAppendingString:_vid?:@""];
-    UIActivityViewController *a=[[UIActivityViewController alloc] initWithActivityItems:@[link] applicationActivities:nil];
-    [self presentViewController:a animated:YES completion:nil];
+    Class act=NSClassFromString(@"UIActivityViewController");   // erst ab iOS 6
+    if(act){ UIViewController *a=[[act alloc] initWithActivityItems:@[link] applicationActivities:nil]; [self presentViewController:a animated:YES completion:nil]; return; }
+    [UIPasteboard generalPasteboard].string=link;              // iOS 5: Link kopieren
+    [[[UIAlertView alloc] initWithTitle:nil message:L(@"Link copied") delegate:nil cancelButtonTitle:L(@"OK") otherButtonTitles:nil] show];
 }
 - (void)goBack {
     BOOL playing=_mp && !_audioMode && (_mp.playbackState==MPMoviePlaybackStatePlaying || _mp.playbackState==MPMoviePlaybackStatePaused);
