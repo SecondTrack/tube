@@ -1,8 +1,8 @@
 {
   "id": "tube",
   "name": "Tube",
-  "short": "Videos suchen und schauen",
-  "category": "Medien",
+  "short": "Search and watch videos",
+  "category": "Media",
   "status": "beta",
   "ios": [
     "6.1.6"
@@ -12,15 +12,25 @@
   "repo": "SecondTrack/tube",
   "requires": "",
   "license": "GPL-3.0",
-  "install": "GitHub-Release: neuestes Release, Anhang *.deb",
+  "install": "GitHub release: latest release, *.deb asset",
   "bundle": "de.mesh.ytube",
-  "text": "Videos suchen und in 360p abspielen – oder nur den Ton, auch im Hintergrund. Mit Kommentaren, ohne Konto.",
+  "text": "Search videos and play them in 360p – or just the audio, even in the background. Double-tap to skip, mini player while you browse. With comments, no account.",
   "features": [
+    "Search as usual",
+    "Videos in 360p",
+    "Audio only – even in the background",
+    "Mini player and double-tap to skip",
+    "Read comments"
+  ],
+  "icon": "https://raw.githubusercontent.com/SecondTrack/tube/main/Resources/Icon@2x.png",
+  "private": false,
+  "short_de": "Videos suchen und schauen",
+  "category_de": "Medien",
+  "text_de": "Videos suchen und in 360p abspielen – oder nur den Ton, auch im Hintergrund. Mit Kommentaren, ohne Konto.",
+  "features_de": [
     "Suche wie gewohnt",
     "Videos in 360p",
     "Nur Ton – auch im Hintergrund",
     "Kommentare lesen"
-  ],
-  "icon": "https://raw.githubusercontent.com/SecondTrack/tube/main/Resources/Icon@2x.png",
-  "private": false
+  ]
 }

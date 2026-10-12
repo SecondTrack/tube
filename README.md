@@ -1,39 +1,42 @@
 # Tube
 
-**Videos suchen und schauen**
+**Search and watch videos**
 
-Videos suchen und in 360p abspielen – oder nur den Ton, auch im Hintergrund. Mit Kommentaren, ohne Konto.
+Search videos and play them in 360p – or just the audio, even in the background. Double-tap to skip, mini player while you browse. With comments, no account.
 
-## Das kann die App
+## Features
 
-- Suche wie gewohnt
+- Search as usual
 - Videos in 360p
-- Nur Ton – auch im Hintergrund
-- Kommentare lesen
+- Audio only – even in the background
+- Mini player and double-tap to skip
+- Read comments
 
-## Läuft auf
+## Runs on
 
-iOS 6.1.6 · gejailbreakter iPod touch
+iOS 6.1.6 · jailbroken iPod touch
 
-## Installieren
+## Install
 
-Am einfachsten über den **[Reboot Appstore](https://github.com/SecondTrack/reboot)** direkt auf dem iPod.
-Von Hand: das `.deb` aus dem [neuesten Release](https://github.com/SecondTrack/tube/releases/latest) laden und mit `dpkg -i` installieren, danach `uicache`.
+The easiest way is the **[Reboot App Store](https://github.com/SecondTrack/reboot)** right on the iPod.
+By hand: download the `.deb` from the [latest release](https://github.com/SecondTrack/tube/releases/latest), install it with `dpkg -i`, then run `uicache`.
 
-## Selbst bauen
+## Build it yourself
 
-Mit [Theos](https://theos.dev) (iOS-SDK mit armv7):
+With [Theos](https://theos.dev) (iOS SDK with armv7):
 
 ```sh
 make package
 ```
 
-## Teil von Reboot
+## Part of Reboot
 
-Diese App gehört zu **Reboot** von [Second Track](https://secondtrack.de) – neue Apps für alte iPods.
-Alle Apps: [SecondTrack](https://github.com/SecondTrack).
+This app is part of **Reboot** by **Second Track** – new apps for old iPods.
+All apps: [SecondTrack](https://github.com/SecondTrack).
 
-## Lizenz
+## License
 
-GPL-3.0 – siehe [LICENSE](LICENSE). Mitgelieferte Bibliotheken unter `vendor/` behalten ihre eigenen Lizenzen.
-Nicht mit Apple verbunden. iPod ist eine Marke von Apple Inc.
+GPL-3.0 – see [LICENSE](LICENSE). Bundled libraries under `vendor/` keep their own licenses.
+Not affiliated with Apple. iPod is a trademark of Apple Inc.
+
+Not affiliated with YouTube or Google.
