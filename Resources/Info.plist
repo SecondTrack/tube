@@ -4,8 +4,8 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key><string>en</string>
 	<key>CFBundleLocalizations</key><array><string>en</string><string>de</string></array>
-	<key>CFBundleDisplayName</key><string>YouTube</string>
-	<key>CFBundleName</key><string>YouTube</string>
+	<key>CFBundleDisplayName</key><string>Tube</string>
+	<key>CFBundleName</key><string>Tube</string>
 	<key>CFBundleExecutable</key><string>Tube</string>
 	<key>CFBundleIdentifier</key><string>de.mesh.ytube</string>
 	<key>CFBundleInfoDictionaryVersion</key><string>6.0</string>

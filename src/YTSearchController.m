@@ -25,8 +25,8 @@
     // --- Kopfzeile: YouTube-Logo ---
     UIView *top=[[UIView alloc] initWithFrame:CGRectMake(0,0,W,52)]; top.backgroundColor=[YTTheme bar];
     top.autoresizingMask=UIViewAutoresizingFlexibleWidth; [self.view addSubview:top];
-    UIImageView *logo=[[UIImageView alloc] initWithImage:[YTTheme logo:26]]; logo.frame=CGRectMake(12,27,26,18); [top addSubview:logo];
-    UILabel *wm=[[UILabel alloc] initWithFrame:CGRectMake(42,24,160,24)]; wm.text=@"YouTube"; wm.textColor=[YTTheme ink]; wm.font=[UIFont boldSystemFontOfSize:19]; [top addSubview:wm];
+    UIImageView *logo=[[UIImageView alloc] initWithImage:[YTTheme logo:22]]; logo.frame=CGRectMake(14,25,22,22); [top addSubview:logo];
+    UILabel *wm=[[UILabel alloc] initWithFrame:CGRectMake(42,24,160,24)]; wm.text=@"Tube"; wm.textColor=[YTTheme ink]; wm.font=[UIFont boldSystemFontOfSize:19]; [top addSubview:wm];
 
     // --- Suchfeld ---
     _search=[[UITextField alloc] initWithFrame:CGRectMake(12,58,W-24,36)];

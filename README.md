@@ -1,6 +1,6 @@
 # Tube
 
-**YouTube on an iPod touch 4 with iOS 6 – search, watch in 360p, or just listen with the screen off.**
+**A video player for the iPod touch 4 with iOS 6 – search YouTube, watch in 360p, or just listen with the screen off.**
 
 The built-in YouTube app on iOS 6 stopped working long ago, and the website no longer plays on old Safari. Tube asks YouTube for the plain 360p stream (H.264 + AAC, itag 18) – the one format the iPod's hardware decoder can play natively – and hands it to the system player.
 

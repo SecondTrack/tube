@@ -8,7 +8,7 @@
     "6.1.6"
   ],
   "package": "de.mesh.ytube",
-  "version": "0.2.1",
+  "version": "0.2.3",
   "repo": "SecondTrack/tube",
   "requires": "",
   "license": "GPL-3.0",
@@ -32,5 +32,6 @@
     "Videos in 360p",
     "Nur Ton – auch im Hintergrund",
     "Kommentare lesen"
-  ]
+  ],
+  "name_de": "Tube"
 }
