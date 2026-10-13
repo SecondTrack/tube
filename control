@@ -1,0 +1,9 @@
+Package: de.mesh.ytube
+Name: Tube
+Version: 0.2.5
+Architecture: iphoneos-arm
+Description: Videos suchen und schauen
+Maintainer: Second Track
+Author: Second Track
+Section: Utilities
+Depends: firmware (>= 5.0)
