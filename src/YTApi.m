@@ -1,4 +1,5 @@
 #import "YTApi.h"
+#import <UIKit/UIKit.h>
 #import "YTNet.h"
 #import "YTLog.h"
 #import "MeshL10n.h"
@@ -57,10 +58,18 @@ static NSString *runsText(id o){
     }
     return @"";
 }
-static NSString *thumbURL(id vr){
+// minPx = Kartenbreite in Pixeln. Nimmt das KLEINSTE Bild, das mindestens so breit ist
+// (scharf wie bisher, aber kein unnötig großes Original); sonst das größte.
+static NSString *thumbURL(id vr, CGFloat minPx){
     id t=vr[@"thumbnail"]; if(![t isKindOfClass:[NSDictionary class]]) return @"";
     id arr=t[@"thumbnails"]; if(![arr isKindOfClass:[NSArray class]]||![arr count]) return @"";
-    id im=[arr lastObject]; // größtes (große Karte)
+    id im=[arr lastObject]; // Fallback: größtes (große Karte)
+    CGFloat best=0;
+    for(id x in arr){
+        if(![x isKindOfClass:[NSDictionary class]]||![x[@"url"] isKindOfClass:[NSString class]]) continue;
+        CGFloat w=[x[@"width"] respondsToSelector:@selector(floatValue)]?[x[@"width"] floatValue]:0;
+        if(w>=minPx && (best==0 || w<best)){ best=w; im=x; }
+    }
     return ([im isKindOfClass:[NSDictionary class]]&&[im[@"url"] isKindOfClass:[NSString class]])?im[@"url"]:@"";
 }
 static NSString *avatarURL(id vr){
@@ -74,6 +83,8 @@ static NSString *avatarURL(id vr){
 }
 
 + (void)search:(NSString *)query completion:(void(^)(NSArray *))done {
+    // Kartenbreite (Bildschirm - 24 pt Rand) in Pixeln, hier auf dem Haupt-Thread ermittelt
+    UIScreen *scr=[UIScreen mainScreen]; CGFloat minPx=(scr.bounds.size.width-24)*scr.scale;
     dispatch_async(dispatch_get_global_queue(0,0), ^{
         NSDictionary *web=@{@"clientName":@"WEB",@"clientVersion":@"2.20240606.06.00",@"hl":@"en",@"gl":@"US"};
         NSDictionary *j=[self post:@"search" client:web ua:@"Mozilla/5.0" extra:@{@"query":query?:@""}];
@@ -88,7 +99,7 @@ static NSString *avatarURL(id vr){
                              @"length":runsText(vr[@"lengthText"]),
                              @"views":runsText(vr[@"viewCountText"]),
                              @"published":runsText(vr[@"publishedTimeText"]),
-                             @"thumb":thumbURL(vr),
+                             @"thumb":thumbURL(vr,minPx),
                              @"avatar":avatarURL(vr)}];
         }
         dispatch_async(dispatch_get_main_queue(), ^{ if(done)done(out); });

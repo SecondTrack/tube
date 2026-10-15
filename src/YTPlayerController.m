@@ -34,6 +34,7 @@
     CGFloat _sh, _sy;
     BOOL _fs; UIView *_fsBox;   // eigenes Vollbild
     BOOL _mini; UIView *_miniBox; // Mini-Player unten rechts (weiter abspielen beim Zurückgehen)
+    int _iconState;               // zuletzt gezeichnetes Symbol (1=Pause, 0=Play, -1=keins) -> nur bei Wechsel neu zeichnen
 }
 static YTPlayerController *gMini;   // hält den Player am Leben, solange er klein weiterspielt
 
@@ -47,6 +48,7 @@ static YTPlayerController *gMini;   // hält den Player am Leben, solange er kle
     self.view.backgroundColor=[YTTheme bg];
     CGFloat W=self.view.bounds.size.width, H=self.view.bounds.size.height;
     _sh=W*9.0/16.0; _sy=20; _cImgs=[[NSCache alloc] init]; _cImgs.countLimit=60;
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(memWarn) name:UIApplicationDidReceiveMemoryWarningNotification object:nil];
 
     _stage=[[UIView alloc] initWithFrame:CGRectMake(0,_sy,W,_sh)]; _stage.backgroundColor=[UIColor blackColor]; [self.view addSubview:_stage];
     _spin=[[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleWhiteLarge];
@@ -291,7 +293,7 @@ static YTPlayerController *gMini;   // hält den Player am Leben, solange er kle
     [seek addGestureRecognizer:[[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handleSeek:)]]; [_ctrls addSubview:seek];
     _fsBtn=[UIButton buttonWithType:UIButtonTypeCustom]; _fsBtn.frame=CGRectMake(W-28,by-1,24,22); _fsBtn.autoresizingMask=UIViewAutoresizingFlexibleLeftMargin|UIViewAutoresizingFlexibleTopMargin;
     [_fsBtn setImage:[self fsIcon] forState:UIControlStateNormal]; [_fsBtn addTarget:self action:@selector(toggleFullscreen) forControlEvents:UIControlEventTouchUpInside]; [_ctrls addSubview:_fsBtn];
-    _ctrlsShown=YES; [self drawPlayIcon]; [self scheduleHide];
+    _ctrlsShown=YES; _iconState=-1; [self drawPlayIcon]; [self scheduleHide];
     _playBtn.hidden=_spin.isAnimating;
 }
 - (UIImage *)fsIcon {
@@ -302,10 +304,14 @@ static YTPlayerController *gMini;   // hält den Player am Leben, solange er kle
     [p moveToPoint:CGPointMake(8,19)];[p addLineToPoint:CGPointMake(3,19)];[p addLineToPoint:CGPointMake(3,14)]; [p stroke];
     UIImage*i=UIGraphicsGetImageFromCurrentImageContext(); UIGraphicsEndImageContext(); return i;
 }
+- (void)memWarn { [_cImgs removeAllObjects]; }
 - (void)drawPlayIcon {
+    int st=([_mp playbackState]==MPMoviePlaybackStatePlaying)?1:0;
+    if(st==_iconState && [_playBtn viewWithTag:9]) return;   // Timer-Tick ohne Zustandswechsel: nichts neu bauen
+    _iconState=st;
     for(UIView*v in [_playBtn.subviews copy]) if(v.tag==9)[v removeFromSuperview];
     UIView *ic=[[UIView alloc] initWithFrame:_playBtn.bounds]; ic.tag=9; ic.userInteractionEnabled=NO;
-    if([_mp playbackState]==MPMoviePlaybackStatePlaying){ for(int i=0;i<2;i++){ UIView*b=[[UIView alloc] initWithFrame:CGRectMake(18+i*10,16,6,20)]; b.backgroundColor=[UIColor whiteColor]; [ic addSubview:b]; } }
+    if(st){ for(int i=0;i<2;i++){ UIView*b=[[UIView alloc] initWithFrame:CGRectMake(18+i*10,16,6,20)]; b.backgroundColor=[UIColor whiteColor]; [ic addSubview:b]; } }
     else { UIImageView*tv=[[UIImageView alloc] initWithFrame:ic.bounds]; UIGraphicsBeginImageContextWithOptions(ic.bounds.size,NO,0); UIBezierPath*t=[UIBezierPath bezierPath]; [t moveToPoint:CGPointMake(20,15)];[t addLineToPoint:CGPointMake(20,37)];[t addLineToPoint:CGPointMake(38,26)];[t closePath]; [[UIColor whiteColor] setFill]; [t fill]; tv.image=UIGraphicsGetImageFromCurrentImageContext(); UIGraphicsEndImageContext(); [ic addSubview:tv]; }
     [_playBtn addSubview:ic];
 }

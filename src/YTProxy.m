@@ -11,6 +11,8 @@
 #import "mbedtls/ctr_drbg.h"
 
 #define PROXY_PORT 8791
+#define PROXY_MAX_RELAYS 3   // A4/256 MB: höchstens 3 gleichzeitige Relays (je TLS-Kontext + Puffer)
+#define PROXY_SLOT_WAIT_S 20  // so lange wartet eine neue Verbindung auf einen freien Platz, sonst 503
 
 static int gListen=-1;
 
@@ -51,10 +53,12 @@ static void relay(int clientfd, NSString *remoteURL, NSString *rangeHdr){
     mbedtls_net_init(&srv); mbedtls_ssl_init(&ssl); mbedtls_ssl_config_init(&conf); mbedtls_ctr_drbg_init(&ctr);
     const char *h=[host UTF8String];
     { struct timeval tv; tv.tv_sec=5; tv.tv_usec=0; setsockopt(clientfd,SOL_SOCKET,SO_SNDTIMEO,&tv,sizeof(tv)); }  // Client-Write kurz -> abgebrochene Relays sterben schnell
+    { int one=1; setsockopt(clientfd,SOL_SOCKET,SO_NOSIGPIPE,&one,sizeof(one)); }  // Player schließt -> EPIPE statt SIGPIPE
     YTLog(@"proxy relay host=%@ range=%@", host, rangeHdr?:@"-");
     if(mbedtls_ctr_drbg_seed(&ctr,mxEnt,NULL,(const unsigned char*)"ytpx",4)!=0){ YTLog(@"proxy drbg fail"); goto done; }
     if(mbedtls_net_connect(&srv,h,"443",MBEDTLS_NET_PROTO_TCP)!=0){ YTLog(@"proxy connect fail %@",host); goto done; }
-    { struct timeval tv; tv.tv_sec=30; tv.tv_usec=0; setsockopt(srv.fd,SOL_SOCKET,SO_RCVTIMEO,&tv,sizeof(tv)); }  // Upstream-Read großzügig (langsames WLAN)
+    { struct timeval tv; tv.tv_sec=30; tv.tv_usec=0; setsockopt(srv.fd,SOL_SOCKET,SO_RCVTIMEO,&tv,sizeof(tv)); setsockopt(srv.fd,SOL_SOCKET,SO_SNDTIMEO,&tv,sizeof(tv));  // Upstream-Read großzügig (langsames WLAN)
+      int one=1; setsockopt(srv.fd,SOL_SOCKET,SO_NOSIGPIPE,&one,sizeof(one)); }
     if(mbedtls_ssl_config_defaults(&conf,MBEDTLS_SSL_IS_CLIENT,MBEDTLS_SSL_TRANSPORT_STREAM,MBEDTLS_SSL_PRESET_DEFAULT)!=0) goto done;
     mbedtls_ssl_conf_authmode(&conf,MBEDTLS_SSL_VERIFY_NONE);   // iOS6 kennt Googles Root nicht -> wir prüfen nicht
     mbedtls_ssl_conf_rng(&conf,mbedtls_ctr_drbg_random,&ctr);
@@ -78,6 +82,8 @@ done:
 
 static void handle(int clientfd){
     @autoreleasepool {
+        // Client, der verbindet aber nichts schickt, darf keinen Relay-Platz ewig blockieren
+        { struct timeval tv; tv.tv_sec=10; tv.tv_usec=0; setsockopt(clientfd,SOL_SOCKET,SO_RCVTIMEO,&tv,sizeof(tv)); }
         NSString *hdrs=readHeaders(clientfd);
         NSString *remote=nil, *rangeHdr=nil;
         NSArray *lines=[hdrs componentsSeparatedByString:@"\r\n"];
@@ -105,10 +111,23 @@ static void handle(int clientfd){
     if(bind(s,(struct sockaddr*)&a,sizeof(a))!=0){ YTLog(@"proxy BIND FAIL port %d (errno %d)",PROXY_PORT,errno); close(s); return; }
     if(listen(s,8)!=0){ YTLog(@"proxy LISTEN FAIL"); close(s); return; }
     gListen=s; YTLog(@"proxy gestartet auf 127.0.0.1:%d",PROXY_PORT);
-    // eigene konkurrierende Queue (nicht die globale -> Haupt-Thread/Bilder bleiben frei), ohne Limit (kein Deadlock)
+    // eigene konkurrierende Queue (nicht die globale -> Haupt-Thread/Bilder bleiben frei).
+    // Max. PROXY_MAX_RELAYS gleichzeitig: weitere Verbindungen warten (Warteschlange); alte Relays
+    // geben ihren Platz über die Socket-Timeouts sicher frei (kein Deadlock). Kommt in
+    // PROXY_SLOT_WAIT_S kein Platz frei -> sauberes 503, der Player fragt neu an.
     static dispatch_queue_t pq; pq=dispatch_queue_create("mesh.yt.proxy",DISPATCH_QUEUE_CONCURRENT);
+    static dispatch_semaphore_t slots; slots=dispatch_semaphore_create(PROXY_MAX_RELAYS);
     dispatch_async(dispatch_get_global_queue(0,0), ^{
-        for(;;){ int c=accept(gListen,NULL,NULL); if(c<0)continue; dispatch_async(pq, ^{ handle(c); }); }
+        for(;;){ int c=accept(gListen,NULL,NULL); if(c<0)continue;
+            { int one=1; setsockopt(c,SOL_SOCKET,SO_NOSIGPIPE,&one,sizeof(one)); }
+            if(dispatch_semaphore_wait(slots,dispatch_time(DISPATCH_TIME_NOW,(int64_t)PROXY_SLOT_WAIT_S*NSEC_PER_SEC))!=0){
+                YTLog(@"proxy voll -> 503");
+                static const char busy[]="HTTP/1.1 503 Service Unavailable\r\nRetry-After: 1\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+                struct timeval tv; tv.tv_sec=2; tv.tv_usec=0; setsockopt(c,SOL_SOCKET,SO_SNDTIMEO,&tv,sizeof(tv));
+                (void)write(c,busy,sizeof(busy)-1); close(c); continue;
+            }
+            dispatch_async(pq, ^{ handle(c); dispatch_semaphore_signal(slots); });
+        }
     });
 }
 + (NSString *)localURLFor:(NSString *)remoteHTTPSURL {

@@ -2,6 +2,18 @@
 #import "mbedtls/ssl.h"
 #import "mbedtls/net_sockets.h"
 #import "mbedtls/ctr_drbg.h"
+#import <sys/socket.h>
+#import <sys/time.h>
+
+#define YT_NET_TIMEOUT_S 15   // hängende Verbindung (WLAN weg) -> nach 15 s normaler Fehler statt ewig blockieren
+
+// Socket absichern: kein SIGPIPE beim Schreiben auf tote Verbindung, Lese-/Schreib-Timeout.
+static void ytSockOpts(int fd){
+    if(fd<0) return;
+    int one=1; setsockopt(fd,SOL_SOCKET,SO_NOSIGPIPE,&one,sizeof(one));
+    struct timeval tv; tv.tv_sec=YT_NET_TIMEOUT_S; tv.tv_usec=0;
+    setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&tv,sizeof(tv)); setsockopt(fd,SOL_SOCKET,SO_SNDTIMEO,&tv,sizeof(tv));
+}
 
 static int mxEntropy(void*d,unsigned char*o,size_t n){ (void)d; for(size_t i=0;i<n;i++)o[i]=arc4random()&0xff; return 0; }
 
@@ -30,12 +42,14 @@ static NSData* dechunk(NSData*d){
     NSData*result=nil; const char*h=[host UTF8String];
     if(mbedtls_ctr_drbg_seed(&ctr,mxEntropy,NULL,(const unsigned char*)"mxcli",5)!=0) goto done;
     if(mbedtls_net_connect(&srv,h,"443",MBEDTLS_NET_PROTO_TCP)!=0) goto done;
+    ytSockOpts(srv.fd);
     if(mbedtls_ssl_config_defaults(&conf,MBEDTLS_SSL_IS_CLIENT,MBEDTLS_SSL_TRANSPORT_STREAM,MBEDTLS_SSL_PRESET_DEFAULT)!=0) goto done;
     mbedtls_ssl_conf_authmode(&conf,MBEDTLS_SSL_VERIFY_NONE);
     mbedtls_ssl_conf_rng(&conf,mbedtls_ctr_drbg_random,&ctr);
+    mbedtls_ssl_conf_read_timeout(&conf,YT_NET_TIMEOUT_S*1000);
     if(mbedtls_ssl_setup(&ssl,&conf)!=0) goto done;
     mbedtls_ssl_set_hostname(&ssl,h);
-    mbedtls_ssl_set_bio(&ssl,&srv,mbedtls_net_send,mbedtls_net_recv,NULL);
+    mbedtls_ssl_set_bio(&ssl,&srv,mbedtls_net_send,NULL,mbedtls_net_recv_timeout);   // Lesen mit Timeout
     { int hs; while((hs=mbedtls_ssl_handshake(&ssl))!=0){ if(hs!=MBEDTLS_ERR_SSL_WANT_READ&&hs!=MBEDTLS_ERR_SSL_WANT_WRITE) goto done; } }
     { NSMutableString*req=[NSMutableString stringWithFormat:@"%@ %@ HTTP/1.1\r\nHost: %@\r\nConnection: close\r\n",method,path,host];
       for(NSString*x in headers)[req appendFormat:@"%@\r\n",x];
@@ -45,7 +59,9 @@ static NSData* dechunk(NSData*d){
       const unsigned char*wp=rd.bytes; size_t wl=rd.length,wo=0;
       while(wo<wl){ int w=mbedtls_ssl_write(&ssl,wp+wo,wl-wo); if(w<=0){ if(w==MBEDTLS_ERR_SSL_WANT_READ||w==MBEDTLS_ERR_SSL_WANT_WRITE)continue; goto done; } wo+=w; } }
     { NSMutableData*resp=[NSMutableData data]; unsigned char buf[8192];
-      for(;;){ int rr=mbedtls_ssl_read(&ssl,buf,sizeof(buf)); if(rr==MBEDTLS_ERR_SSL_WANT_READ||rr==MBEDTLS_ERR_SSL_WANT_WRITE)continue; if(rr<=0)break; [resp appendBytes:buf length:rr]; }
+      for(;;){ int rr=mbedtls_ssl_read(&ssl,buf,sizeof(buf)); if(rr==MBEDTLS_ERR_SSL_WANT_READ||rr==MBEDTLS_ERR_SSL_WANT_WRITE)continue;
+        if(rr==MBEDTLS_ERR_SSL_TIMEOUT||rr==MBEDTLS_ERR_NET_RECV_FAILED) goto done;   // Timeout/Abbruch -> Fehler (nil), keine halbe Antwort
+        if(rr<=0)break; [resp appendBytes:buf length:rr]; }
       NSData*sep=[@"\r\n\r\n" dataUsingEncoding:NSUTF8StringEncoding];
       NSRange sr=[resp rangeOfData:sep options:0 range:NSMakeRange(0,resp.length)];
       if(sr.location!=NSNotFound){

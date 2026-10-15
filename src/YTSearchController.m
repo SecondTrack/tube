@@ -20,6 +20,8 @@
     self.view=[[UIView alloc] initWithFrame:[UIScreen mainScreen].bounds];
     self.view.backgroundColor=[YTTheme bg];
     _imgs=[[NSCache alloc] init]; _imgs.countLimit=80;
+    _imgs.totalCostLimit=8*1024*1024;   // Kosten = dekodierte Pixel-Bytes (256 MB RAM!)
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(memWarn) name:UIApplicationDidReceiveMemoryWarningNotification object:nil];
     CGFloat W=self.view.bounds.size.width, H=self.view.bounds.size.height;
 
     // --- Kopfzeile: YouTube-Logo ---
@@ -81,12 +83,32 @@
 }
 - (void)scrollViewWillBeginDragging:(UIScrollView *)s { [_search resignFirstResponder]; }
 
+- (void)memWarn { [_imgs removeAllObjects]; }
+- (void)dealloc { [[NSNotificationCenter defaultCenter] removeObserver:self]; }
+
+// Dekodiert im Hintergrund und verkleinert auf die Pixelgröße der Anzeige (AspectFill-Maß, nie vergrößert).
+// Sieht in der Zelle gleich aus, belegt aber nur so viel RAM wie wirklich angezeigt wird.
+static UIImage *ytFitImage(UIImage *im, CGSize box, CGFloat scale){
+    CGSize s=im.size; if(s.width<=0||s.height<=0||box.width<=0||box.height<=0) return im;
+    CGFloat f=MAX(box.width/s.width, box.height/s.height);
+    if(f*scale>im.scale) f=im.scale/scale;   // nicht hochskalieren
+    CGSize t=CGSizeMake(ceil(s.width*f*scale)/scale, ceil(s.height*f*scale)/scale);
+    UIGraphicsBeginImageContextWithOptions(t,NO,scale);
+    CGContextSetInterpolationQuality(UIGraphicsGetCurrentContext(),kCGInterpolationHigh);
+    [im drawInRect:CGRectMake(0,0,t.width,t.height)];   // erzwingt das Dekodieren hier, nicht beim Scrollen
+    UIImage *o=UIGraphicsGetImageFromCurrentImageContext(); UIGraphicsEndImageContext();
+    return o?:im;
+}
+
 - (void)loadImage:(NSString *)url into:(UIImageView *)iv tv:(UITableView *)tv ip:(NSIndexPath *)ip tag:(int)tag {
     if(!url.length){ iv.image=nil; return; }
     UIImage *c=[_imgs objectForKey:url]; if(c){ iv.image=c; return; }
     iv.image=nil;
-    dispatch_async(dispatch_get_global_queue(0,0), ^{ NSData *d=[NSData dataWithContentsOfURL:[NSURL URLWithString:url]]; UIImage *im=d?[UIImage imageWithData:d]:nil;
-        if(im){ [_imgs setObject:im forKey:url]; dispatch_async(dispatch_get_main_queue(), ^{ UITableViewCell *cc=[tv cellForRowAtIndexPath:ip]; if(cc)((UIImageView*)[cc.contentView viewWithTag:tag]).image=im; }); } });
+    CGSize box=iv.bounds.size; CGFloat scale=[UIScreen mainScreen].scale; NSCache *cache=_imgs;
+    dispatch_async(dispatch_get_global_queue(0,0), ^{ UIImage *im=nil;
+        @autoreleasepool { NSData *d=[NSData dataWithContentsOfURL:[NSURL URLWithString:url]]; UIImage *raw=d?[UIImage imageWithData:d]:nil; if(raw) im=ytFitImage(raw,box,scale); }
+        if(im){ CGImageRef cg=im.CGImage; NSUInteger cost=cg?CGImageGetBytesPerRow(cg)*CGImageGetHeight(cg):0;
+            [cache setObject:im forKey:url cost:cost]; dispatch_async(dispatch_get_main_queue(), ^{ UITableViewCell *cc=[tv cellForRowAtIndexPath:ip]; if(cc)((UIImageView*)[cc.contentView viewWithTag:tag]).image=im; }); } });
 }
 
 - (NSInteger)tableView:(UITableView *)t numberOfRowsInSection:(NSInteger)s { return _results.count; }
